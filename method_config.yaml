@@ -1,0 +1,7 @@
+llmc_entropy_top_k: 50
+llmc_window_size: 1
+llmc_answer_only: true
+llmc_hidden_layer_idx: null
+llmc_attn_layer_idx: null
+icr_top_k: 20
+lap_eig_top_k: 10

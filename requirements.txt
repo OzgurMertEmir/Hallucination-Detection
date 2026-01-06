@@ -1,0 +1,11 @@
+torch
+transformers
+datasets
+pandas
+numpy
+scikit-learn
+tqdm
+langchain_openai
+uqlm
+pyyaml
+hf_transfer
