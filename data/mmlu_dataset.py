@@ -37,7 +37,7 @@ from typing import Iterable, Optional, Dict, List
 
 from datasets import load_dataset
 
-from .examples import QAExample
+from data.examples import QAExample
 
 logger = logging.getLogger(__name__)
 

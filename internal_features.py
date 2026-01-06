@@ -16,9 +16,9 @@ except Exception:
     AutoModelForCausalLM = None
     ChatOpenAI = None
 
-from .data import QAExample
-from .prompts import prompt_for_model_answer, prompt_for_labeler_llm
-from .labeling_judge import JudgeLabeler
+from data import QAExample
+from prompts import prompt_for_model_answer, prompt_for_labeler_llm
+from labeling_judge import JudgeLabeler
 
 logger = logging.getLogger(__name__)
 

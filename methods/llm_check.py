@@ -13,9 +13,9 @@ except Exception:
     torch = None
 
 # Project types
-from .method_cfg import MethodConfig
-from ..internal_features import InternalExampleState
-from .LLM_Check_Hallucination_Detection import common_utils as cu
+from methods.method_cfg import MethodConfig
+from internal_features import InternalExampleState
+from methods.LLM_Check_Hallucination_Detection import common_utils as cu
 
 logger = logging.getLogger(__name__)
 

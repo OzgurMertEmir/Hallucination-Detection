@@ -16,8 +16,8 @@ try:
 except Exception:  # pragma: no cover
     torch = None  # type: ignore
 
-from .method_cfg import MethodConfig
-from ..internal_features import InternalExampleState
+from methods.method_cfg import MethodConfig
+from internal_features import InternalExampleState
 
 logger = logging.getLogger(__name__)
 

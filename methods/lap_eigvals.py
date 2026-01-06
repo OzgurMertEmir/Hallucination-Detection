@@ -11,9 +11,9 @@ except Exception:
     torch = None
     Tensor = Any
 
-from .lapeigvals.hallucinations.features.laplacian import laplacian_diagonal_from_attn  
-from .method_cfg import MethodConfig
-from ..internal_features import InternalExampleState
+from methods.lapeigvals.hallucinations.features.laplacian import laplacian_diagonal_from_attn  
+from methods.method_cfg import MethodConfig
+from internal_features import InternalExampleState
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ from typing import Dict, Iterable, Optional
 
 import logging
 
-from .examples import QAExample
+from data.examples import QAExample
 
 try:
     from datasets import load_dataset  # type: ignore

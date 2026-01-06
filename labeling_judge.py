@@ -26,7 +26,7 @@ Typical usage:
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
-from .prompts import prompt_for_labeler_llm, labeler_sys_prompt
+from prompts import prompt_for_labeler_llm, labeler_sys_prompt
 import logging
 
 try:

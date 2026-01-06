@@ -14,8 +14,8 @@ except Exception:
 
 import pandas as pd
 
-from .internal_features import InternalExampleState
-from .methods import (
+from internal_features import InternalExampleState
+from methods import (
     FactCheckmateFeatures, FactCheckmateConfig,
     LLMCheckFeatures, LLMCheckConfig,
     ICRProbeFeatures, ICRProbeConfig,
@@ -86,9 +86,6 @@ class FeatureExtractor:
                 answer_only=_get(method_parameters, "llmc_answer_only", default=True),
                 hidden_layer_idx=_get(method_parameters, "llmc_hidden_layer_idx", default=None),
                 attn_layer_idx=_get(method_parameters, "llmc_attn_layer_idx", default=None),
-            ),
-            "llm_check": LLMCheckConfig(
-                entropy_top_k=_get(method_parameters, "llmc_entropy_top_k", default=50),
             ),
             "icr_probe": ICRProbeConfig(
                 top_k=_get(method_parameters, "icr_top_k", default=5),

@@ -28,14 +28,14 @@ try:
 except Exception:
     torch = None  # type: ignore
 
-from .data import (
+from data import (
     HaluEvalDataset,
     MedMCQADataset,
     MMLUDataset,
     QAExample,
     DATASET_REGISTRY,
 )
-from .build_features import FeatureBuilder
+from build_features import FeatureBuilder
 
 # === Distributed helper functions ===
 

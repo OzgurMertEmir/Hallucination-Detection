@@ -1,4 +1,4 @@
-from .data import QAExample
+from data import QAExample
 
 def prompt_for_model_answer(example: QAExample):
     if 'halueval' in example.qid:

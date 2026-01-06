@@ -13,9 +13,9 @@ try:
 except Exception:  # pragma: no cover
     torch = None  # type: ignore
 
-from .method_cfg import MethodConfig
-from ..internal_features import InternalExampleState
-from .ICR_Probe.src.icr_score import ICRScore
+from methods.method_cfg import MethodConfig
+from internal_features import InternalExampleState
+from methods.ICR_Probe.src.icr_score import ICRScore
 
 logger = logging.getLogger(__name__)
 

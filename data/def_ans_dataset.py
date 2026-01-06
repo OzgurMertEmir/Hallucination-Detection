@@ -26,7 +26,7 @@ import json
 from urllib.request import urlopen
 from typing import Dict, Iterable, Optional, Sequence
 
-from .examples import QAExample
+from data.examples import QAExample
 
 try:
     from datasets import Dataset  # type: ignore

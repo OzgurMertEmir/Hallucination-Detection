@@ -25,7 +25,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, Iterable, Optional, Sequence, Set
 
-from .examples import QAExample
+from data.examples import QAExample
 
 try:
     from datasets import load_dataset  # type: ignore

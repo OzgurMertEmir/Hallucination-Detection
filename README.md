@@ -1,65 +1,105 @@
 # Hallucination Detector
 
-This repository implements an end‑to‑end pipeline for **hallucination detection** in large language models (LLMs).  The goal is to build a lightweight classifier that decides whether an answer produced by an LLM is based on the underlying knowledge or whether the model has *hallucinated* unsupported information.  When a hallucination is likely the detector should abstain from answering.
+Lightweight pipeline for building hallucination-detection features on top of multiple QA-style datasets. It:
+- loads several benchmarks (HaluEval `qa`/`dialogue`/`summarization`, MMLU-Pro, PsiloQA, DefAn),
+- prompts a Hugging Face causal LM to answer each question,
+- optionally labels the answers with an LLM-as-a-judge (via LangChain + OpenAI),
+- extracts features from four published methods (FactCheckmate, LLM-Check, ICR Probe, Laplacian Eigenvalues),
+- writes a collated feature bundle you can use to train or evaluate your own classifiers.
 
-The pipeline consists of the following stages:
+The current entry point (`main.py`) focuses on feature generation; model training is left to the user.
 
-1. **Dataset wrappers** – A small wrapper around the [HaluEval dataset](https://huggingface.co/datasets/pminervini/HaluEval) for loading question‑answer pairs.  The `qa` configuration of this dataset provides fields `knowledge`, `question`, `right_answer` and `hallucinated_answer`【852640091365365†L128-L137】.  We also support the `qa_samples` configuration, which contains an `answer` and a human‑provided `hallucination` label【852640091365365†L146-L153】.
-2. **Baseline hallucination detection methods** – Implementations of three recent hallucination detection methods described in the literature:
-   - **FactCheckmate** – learns a classifier over internal hidden states of an LLM to pre‑emptively predict hallucinations.  The FactCheckmate paper shows that a simple classifier over aggregated hidden states can predict upcoming hallucinations with over 70 % accuracy【924916950037334†L16-L41】.
-   - **LLM‑Check** – analyses internal hidden states, attention maps and output prediction probabilities of a language model to detect hallucinations using a single response.  The authors show that their techniques are extremely compute‑efficient and achieve large speed‑ups over baselines【742629337513176†L16-L50】.
-   - **ICR Probe** – introduces the **Information Contribution to Residual Stream (ICR) score**, which quantifies how each network module contributes to the hidden state update.  By tracking how hidden representations evolve across layers the ICR Probe distinguishes hallucinations more reliably than static methods【545815651594640†L45-L56】.
-3. **Model inference** – Use a small open‑source LLM (the repository provides configuration for the 0.5 B parameter version of Qwen2.5) to generate answers for each question in the dataset.  Responses are cached locally.
-4. **Label generation** – Each question is labelled as hallucinated or not.  When a ground truth `right_answer` is available we compute a token‑level F1 similarity between the model’s answer and the reference answer using the standard SQuAD evaluation procedure【970334575385018†L246-L272】.  The example is marked as correct (label 0) if the F1 exceeds a configurable threshold and is larger than its similarity to the hallucinated answer; otherwise it is marked as hallucinated (label 1).  If only the `hallucination` flag is available it is used directly.
-5. **Feature construction** – Each detection method extracts features from the question/answer pair.  FactCheckmate aggregates the model’s hidden states before decoding begins using mean, max and last‑token pooling across tokens and summarizes these pooled representations via their mean, variance and maximum absolute values across layers【924916950037334†L235-L277】.  LLM‑Check computes the *hidden score* (mean log‑determinant of the hidden state covariance matrix) and the *attention score* (mean log‑determinant of the attention kernel) for each layer and summarizes these values across layers; it also includes perplexity and entropy‑based features of the answer【742629337513176†L618-L737】.  The ICR Probe computes an **Information Contribution to Residual Stream** (ICR) score by comparing, for each layer and token, the direction of the hidden state update to the attention weights; this is quantified via the Jensen–Shannon divergence between the update projection distribution and the attention distribution【910855256871511†L301-L444】.  Additional simple lexical features (answer length, digit counts and overlap with the question) are included for robustness.
-6. **Detector training** – A classifier (e.g. logistic regression or random forest) is trained on the features and labels.  The detector outputs a probability that an answer is hallucinated.  If the probability exceeds a configurable threshold the detector predicts a hallucination; otherwise it accepts the answer.  An abstention mechanism is built on top of the probabilities by introducing a second threshold: predictions within a grey zone are abstained.  The abstention mechanism is evaluated not only by coverage but also by the reduction in misinformation: we compare the fraction of hallucinations in the accepted answers to the fraction when no abstention is applied.
-7. **Evaluation** – The repository contains scripts to train the detector and report accuracy, precision/recall/F1 and abstention statistics on a held‑out portion of the dataset.
+## Quick start
 
-## Getting started
+1) Python environment (3.9+ recommended)
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+2) Credentials (optional but recommended)
+   - `OPENAI_API_KEY` for judge labeling via `langchain_openai` + `ChatOpenAI`.
+   - `HF_HOME` / `HF_TOKEN` if you use a private Hugging Face cache.
+3) Run feature extraction (single GPU/CPU)
+```bash
+python main.py \
+  --model_name Qwen/Qwen2.5-0.5B \
+  --device cuda \
+  --max_examples 200 \
+  --output_dir features_output
+```
+This downloads the datasets, generates answers, extracts features, and saves `features_output/features_all.pkl`.
 
-1. **Install dependencies**
+### Multi-GPU
+Set `--num_gpus N` (with `--device cuda`) to shard the work; per-rank files are merged automatically into `features_output/features_all.pkl`.
 
-   The code depends on the following Python libraries:
+### CLI flags (high impact)
+- `--model_name`: HF causal LM to answer questions.
+- `--judge_model_name`: OpenAI model name for the judge (defaults to `gpt-4o-mini`); set `OPENAI_API_KEY`.
+- `--device`: `cpu` or `cuda[:idx]`.
+- `--max_examples`: cap total examples across datasets.
+- `--batch_size`, `--max_new_tokens`: generation controls.
+- `--num_gpus`: number of workers for distributed inference.
+- `--output_dir`: where feature pickle(s) and streamed batches are written.
 
-   ```bash
-   pip install torch transformers datasets numpy scikit‑learn pandas tqdm
-   ```
+## Configuration
 
-   If you only plan to use the pre‑computed features provided in this repository you can omit `torch` and `transformers`.
+Feature-method knobs live in `method_config.yaml`:
+- `llmc_entropy_top_k`, `llmc_window_size`, `llmc_answer_only`, `llmc_hidden_layer_idx`, `llmc_attn_layer_idx` (LLM-Check)
+- `icr_top_k` (ICR Probe)
+- `lap_eig_top_k` (Laplacian Eigenvalues)
 
-2. **Running the pipeline**
+Adjust these if you want fewer/more per-layer values or different entropy windows.
 
-   ```bash
-   python main.py \
-       --dataset_config qa \   # or qa_samples
-       --model_name Qwen/Qwen2.5-0.5B \
-       --max_examples 1000       # limit for demonstration purposes
-   ```
+## Method references
 
-    The script downloads the dataset, runs the language model to generate answers, extracts features, trains the detector and prints an evaluation summary.  It also reports the percentage of hallucinated answers before and after applying abstention.
+- FactCheckmate — feature extractor mirrors the paper description; public paper link not provided upstream yet.
+- LLM-Check (NeurIPS 2024) — [paper](https://openreview.net/forum?id=LYx4w3CAgy) | [repo](https://github.com/GaurangSriramanan/LLM_Check_Hallucination_Detection)
+- ICR Probe (ACL 2025) — [repo](https://github.com/XavierZhang2002/ICR_Probe) (paper forthcoming; abstract in README)
+- Spectral Laplacian Eigenvalues (EMNLP 2025) — [paper](https://arxiv.org/abs/2502.17598) | [repo](https://github.com/graphml-lab-pwr/lapeigvals)
 
-## Repository structure
+## Experiments notebook
+
+- See `notebooks/ensemble_pipelines.ipynb` for end-to-end training/evaluation of the base detectors and a meta-ensemble over their outputs. It:
+  - loads collated feature pickles (`features_*.pkl`) and balances/merges datasets,
+  - trains per-method classifiers (FactCheckmate, LLM-Check, ICR Probe, Lap Eigvals) and a meta logistic regressor,
+  - includes plotting helpers and cross-dataset evaluation snippets.
+- The notebook defaults to a Colab-style path (`FeaturePaths.root = "/content/drive/MyDrive/halu_features"`). Set `FeaturePaths.root` to your local features directory (for example `features_output`) before running locally, and remove or adapt Colab-only cells (`pip uninstall`, `!unzip ...`) as needed.
+- Open locally with `jupyter lab notebooks/ensemble_pipelines.ipynb` or upload to Colab; ensure `requirements.txt` is installed in your environment.
+
+## Repository layout
 
 ```
-hallucination_detector/
-├── README.md               # this file
-├── requirements.txt        # pip dependencies
-├── halueval_dataset.py     # dataset wrapper around HuggingFace data
-├── methods/
-│   ├── __init__.py
-│   ├── factcheckmate.py    # FactCheckmate feature extractor
-│   ├── llm_check.py        # LLM‑Check feature extractor
-│   └── icr_probe.py        # ICR Probe feature extractor
-├── features.py             # orchestrates feature extraction for all methods
-├── detector.py             # training and evaluation of hallucination detector
-├── main.py                 # end‑to‑end pipeline CLI
-└── utils.py                # helper functions
+main.py                 # CLI for dataset loading + feature extraction
+build_features.py       # orchestrates generation + feature passes
+internal_features.py    # runs the HF model, collects hidden states/attn/logits, optional judge labels
+features.py             # collates per-method outputs into tensor-safe bundles
+method_config.yaml      # knobs for each detection method
+data/                   # dataset wrappers (HaluEval, MMLU-Pro, PsiloQA, DefAn, MedMCQA)
+methods/                # feature extractors + vendored method assets
+  ├── factcheckmate.py
+  ├── llm_check.py
+  ├── icr_probe.py
+  ├── lap_eigvals.py
+  ├── lookback_lens.py
+  ├── ICR_Probe/                 # upstream ICR Probe snippet
+  ├── LLM_Check_Hallucination_Detection/  # upstream utilities
+  └── lapeigvals/                # upstream Laplacian Eigenvalue helpers
+notebooks/             # experiment notebook(s)
+prompts.py             # prompt templates for answering + judge prompting
+labeling_judge.py      # minimal LLM-as-a-judge helper (LangChain UQLM panel)
+requirements.txt
 ```
 
-## Notes
+Outputs from runs are ignored via `.gitignore` (`features_output/`, `.pkl`, caches).
 
-* The implementation in this repository follows the high‑level descriptions of the respective papers.  FactCheckmate and the ICR Probe rely on internal representations of the underlying language model; the code uses the HuggingFace `transformers` API to access intermediate hidden states.  In particular, the ICR implementation computes Jensen–Shannon divergences between attention distributions and the directions of hidden state updates across layers【910855256871511†L301-L444】.  When these packages are unavailable, the feature extractors fall back to simple heuristics using only the surface form of the question and answer.
-- The HaluEval dataset was created for hallucination benchmarking and contains multiple configurations.  We use the `qa` split for demonstration, which has fields `knowledge`, `question`, `right_answer` and `hallucinated_answer`【852640091365365†L128-L137】.
-* FactCheckmate pre‑emptively detects hallucinations by learning a classifier over a model’s hidden states【924916950037334†L16-L24】.  LLM‑Check analyses a single response by examining internal attention maps, hidden activations and output probabilities, achieving compute efficiency【742629337513176†L16-L50】.  The ICR Probe introduces an information contribution score to track how hidden states evolve across layers【545815651594640†L45-L56】 and quantifies this via Jensen–Shannon divergence between update directions and attention distributions【910855256871511†L301-L444】.
+## Usage notes
+- Dataset downloads happen on first run via `datasets`; ensure internet access or a local cache.
+- Without an OpenAI key, labels fall back to dataset-provided references (where present).
+- Some vendored method code expects GPU tensors for best performance; CPU works but is slower.
+- If you want to add training scripts, the collated pickle uses the schema in `features.py::CollatedMethodFeatures` (`scalars`, `tensors`, `meta`).
 
-For more details please consult the corresponding papers.
+## Troubleshooting
+- Import errors for `torch`/`transformers`: install a GPU-specific wheel (`pip install 'torch==<version>+cu121' -f https://download.pytorch.org/whl/torch_stable.html`).
+- Judge timeouts: lower `--batch_size` or disable judge by unsetting `OPENAI_API_KEY` (dataset labels will be used when available).
+- Slow HF downloads: set `export HF_HUB_ENABLE_HF_TRANSFER=1` for faster transfers.

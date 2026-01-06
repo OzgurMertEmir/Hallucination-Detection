@@ -1,9 +1,9 @@
 from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor
 import os
-from .data import QAExample
-from .internal_features import InternalStateExtractor
-from .features import FeatureExtractor
+from data import QAExample
+from internal_features import InternalStateExtractor
+from features import FeatureExtractor
 import torch, logging
 from tqdm import tqdm
 
